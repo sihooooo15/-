@@ -17,6 +17,15 @@
 
 ## 실행 방법
 
+### 파이썬 없이 실행 (Windows)
+
+[DesktopTodo.exe 다운로드](https://github.com/sihooooo15/-/releases/latest/download/DesktopTodo.exe) 후 더블클릭하면 끝입니다.
+
+- 처음 실행 시 "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**
+- 코드가 바뀌면 GitHub Actions가 exe를 자동으로 다시 빌드해서 같은 링크에 올립니다.
+
+### 파이썬으로 실행
+
 Python 3.9 이상만 있으면 되고, 추가 설치할 패키지는 없습니다 (표준 라이브러리 tkinter 사용).
 
 ```bash
@@ -30,7 +39,7 @@ Windows에서는 `start_todo.pyw`를 더블클릭하면 콘솔 창 없이 위젯
 ## 컴퓨터 켤 때 자동 실행 (Windows)
 
 1. `Win + R` → `shell:startup` 입력 → 시작프로그램 폴더 열기
-2. `start_todo.pyw`를 **우클릭 → 바로 가기 만들기** 후, 만든 바로 가기를 그 폴더로 이동
+2. `DesktopTodo.exe`(또는 `start_todo.pyw`)를 **우클릭 → 바로 가기 만들기** 후, 만든 바로 가기를 그 폴더로 이동
 
 ## 데이터 저장 위치
 
@@ -52,4 +61,5 @@ Windows에서는 `start_todo.pyw`를 더블클릭하면 콘솔 창 없이 위젯
 | `todo_widget.py` | 위젯 화면 (tkinter) |
 | `todo_store.py` | 할 일 저장/이월 로직 (화면과 분리) |
 | `start_todo.pyw` | Windows용 콘솔 없는 실행 파일 |
+| `.github/workflows/build-exe.yml` | Windows exe 자동 빌드 |
 | `tests/` | 저장/이월 로직 테스트 (`python -m unittest discover -s tests`) |

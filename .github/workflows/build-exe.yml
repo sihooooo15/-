@@ -1,0 +1,47 @@
+# Windows용 실행 파일(.exe)을 자동으로 빌드해서 Releases에 올리는 워크플로
+# 사용자 PC에 파이썬이 없어도 exe 하나로 실행할 수 있게 한다.
+name: Windows exe 빌드
+
+on:
+  push:
+    branches: [claude/desktop-todo-list-app-ggro2h, main]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Release 생성/업로드에 필요
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 로직 테스트
+        run: python -m unittest discover -s tests
+
+      - name: PyInstaller 설치
+        run: pip install pyinstaller
+
+      # --onefile: exe 하나로 묶기, --noconsole: 검은 콘솔 창 숨기기
+      - name: exe 빌드
+        run: pyinstaller --onefile --noconsole --name DesktopTodo start_todo.pyw
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DesktopTodo
+          path: dist/DesktopTodo.exe
+
+      - name: Releases에 최신 exe 올리기
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          target_commitish: ${{ github.sha }}
+          name: 바탕화면 투두 위젯 (최신 빌드)
+          files: dist/DesktopTodo.exe
+          body: |
+            DesktopTodo.exe 를 받아서 더블클릭하면 바로 실행됩니다. (파이썬 설치 불필요)
+            처음 실행 시 "Windows의 PC 보호" 창이 뜨면 [추가 정보] → [실행]을 누르세요.
