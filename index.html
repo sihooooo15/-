@@ -84,6 +84,41 @@
       background: rgba(56, 189, 248, 0.16);
     }
 
+    /* ===== 떠다니는 배경 점 ===== */
+    .dots {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .dot {
+      position: absolute;
+      left: var(--x);
+      top: var(--y);
+      width: var(--size);
+      height: var(--size);
+      border-radius: 50%;
+      background: var(--color);
+      opacity: var(--opacity);
+      /* 점마다 속도·시작 시점을 다르게 해 자연스럽게 떠다니도록 처리 */
+      animation: float var(--dur) ease-in-out var(--delay) infinite alternate;
+      will-change: transform;
+    }
+
+    @keyframes float {
+      0% {
+        transform: translate(0, 0);
+      }
+      50% {
+        transform: translate(calc(var(--dx) * -0.5), var(--dy));
+      }
+      100% {
+        transform: translate(var(--dx), calc(var(--dy) * -0.6));
+      }
+    }
+
     /* ===== 카드 ===== */
     .card {
       width: 100%;
@@ -163,6 +198,16 @@
 
     .tags li {
       list-style: none; /* 브라우저별 마커 노출 방지를 위해 한 번 더 지정 */
+      transition:
+        transform 0.45s var(--ease),
+        opacity 0.45s var(--ease);
+    }
+
+    /* 카드 호버 시 태그가 왼쪽부터 순서대로 살짝 떠오르는 stagger 효과
+       (--i 값은 li마다 0, 1, 2, 3으로 지정) */
+    .card:hover .tags li {
+      transform: translateY(-4px);
+      transition-delay: calc(var(--i) * 80ms);
     }
 
     .tags li::marker {
@@ -297,18 +342,28 @@
     @media (prefers-reduced-motion: reduce) {
       .card,
       .tag,
+      .tags li,
       .social-btn {
         transition: none;
       }
 
       .card:hover,
+      .card:hover .tags li,
       .social-btn:hover {
         transform: none;
+      }
+
+      /* 떠다니는 점은 제자리에 멈춤 */
+      .dot {
+        animation: none;
       }
     }
   </style>
 </head>
 <body>
+  <!-- 카드 뒤쪽 배경에 떠다니는 점 (스크립트로 30개 생성) -->
+  <div class="dots" aria-hidden="true"></div>
+
   <main class="card">
     <!-- 이니셜 아바타 -->
     <div class="avatar" aria-hidden="true">홍</div>
@@ -321,10 +376,10 @@
 
     <!-- 관심 태그 -->
     <ul class="tags" aria-label="관심 태그">
-      <li><span class="tag">독서</span></li>
-      <li><span class="tag">여행</span></li>
-      <li><span class="tag">사진</span></li>
-      <li><span class="tag">커피</span></li>
+      <li style="--i: 0"><span class="tag">독서</span></li>
+      <li style="--i: 1"><span class="tag">여행</span></li>
+      <li style="--i: 2"><span class="tag">사진</span></li>
+      <li style="--i: 3"><span class="tag">커피</span></li>
     </ul>
 
     <hr class="divider" />
@@ -358,5 +413,30 @@
       </a>
     </nav>
   </main>
+
+  <script>
+    // 떠다니는 점 30개를 무작위 위치·크기·속도로 생성
+    (function () {
+      const container = document.querySelector(".dots");
+      const colors = ["#0EA5E9", "#38BDF8", "#7DD3FC"]; // 스카이블루 계열
+      const rand = (min, max) => Math.random() * (max - min) + min;
+
+      for (let i = 0; i < 30; i++) {
+        const dot = document.createElement("span");
+        dot.className = "dot";
+        dot.style.setProperty("--x", rand(0, 100) + "%");
+        dot.style.setProperty("--y", rand(0, 100) + "%");
+        dot.style.setProperty("--size", rand(4, 10) + "px");
+        dot.style.setProperty("--color", colors[i % colors.length]);
+        dot.style.setProperty("--opacity", rand(0.2, 0.5).toFixed(2));
+        dot.style.setProperty("--dur", rand(12, 24) + "s");
+        // 음수 지연으로 처음부터 점들이 서로 다른 위치에서 움직이도록 함
+        dot.style.setProperty("--delay", -rand(0, 24) + "s");
+        dot.style.setProperty("--dx", rand(-40, 40) + "px");
+        dot.style.setProperty("--dy", rand(-50, 50) + "px");
+        container.appendChild(dot);
+      }
+    })();
+  </script>
 </body>
 </html>
