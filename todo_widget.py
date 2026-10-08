@@ -6,8 +6,10 @@
 - 엔터로 할 일 추가, ☐ 클릭으로 완료 체크
 - 더블클릭으로 수정, 우클릭 메뉴로 내일로 미루기/삭제
 - 날짜가 바뀌면 못 한 일은 자동으로 오늘로 이월
+- 날짜 제목을 클릭하면 월간 달력이 열려 원하는 날짜로 바로 이동
 """
 
+import calendar
 import datetime as dt
 import sys
 import tkinter as tk
@@ -25,6 +27,8 @@ ACCENT = "#7aa2f7"
 DONE = "#5f6275"
 CARRY = "#e0af68"
 DANGER = "#f7768e"
+GOOD = "#9ece6a"
+SAT = "#7dcfff"
 
 WEEKDAYS = "월화수목금토일"
 IS_MAC = sys.platform == "darwin"
@@ -62,12 +66,13 @@ class TodoWidget:
         self._drag = None
         self._editing = None  # 현재 수정 중인 할 일 id
 
-        family = pick_font_family(root)
+        family = self.family = pick_font_family(root)
         self.f_title = tkfont.Font(family=family, size=13, weight="bold")
         self.f_body = tkfont.Font(family=family, size=10)
         self.f_done = tkfont.Font(family=family, size=10, overstrike=1)
         self.f_small = tkfont.Font(family=family, size=8)
         self.f_icon = tkfont.Font(family=family, size=12)
+        self.f_bold = tkfont.Font(family=family, size=10, weight="bold")
 
         self._setup_window()
         self._build_ui()
@@ -106,16 +111,19 @@ class TodoWidget:
         r = self.root
 
         # 상단 바: 날짜 + 이동 버튼 + 고정/닫기 (드래그 영역 겸용)
-        head = tk.Frame(r, bg=BG)
+        head = self.head = tk.Frame(r, bg=BG)
         head.pack(fill="x", padx=12, pady=(10, 4))
         self._make_draggable(head)
 
-        self.title_lbl = tk.Label(head, bg=BG, fg=FG, font=self.f_title)
+        # 날짜 제목: 드래그하면 창 이동, 그냥 클릭하면 달력 열기
+        self.title_lbl = tk.Label(head, bg=BG, fg=FG, font=self.f_title, cursor="hand2")
         self.title_lbl.pack(side="left")
-        self._make_draggable(self.title_lbl)
-        self.tag_lbl = tk.Label(head, bg=BG, fg=ACCENT, font=self.f_small)
+        self.tag_lbl = tk.Label(head, bg=BG, fg=ACCENT, font=self.f_small, cursor="hand2")
         self.tag_lbl.pack(side="left", padx=(6, 0), pady=(4, 0))
-        self._make_draggable(self.tag_lbl)
+        for w in (self.title_lbl, self.tag_lbl):
+            w.bind("<ButtonPress-1>", self._title_press)
+            w.bind("<B1-Motion>", self._drag_move)
+            w.bind("<ButtonRelease-1>", self._title_release)
 
         self.close_btn = self._icon_btn(head, "✕", self.close, hover_fg=DANGER)
         self.close_btn.pack(side="right")
@@ -169,6 +177,10 @@ class TodoWidget:
 
         # 단축키: Ctrl+N 입력창 포커스
         r.bind("<Control-n>", lambda e: self.entry.focus_set())
+        r.bind("<Escape>", lambda e: self.cal.close())
+
+        # 달력 패널 (평소엔 숨겨 둠)
+        self.cal = CalendarPanel(self)
         self.readonly = False
 
     def _icon_btn(self, parent, text, cmd, bg=BG, fg=SUB, hover_fg=FG, font=None):
@@ -184,7 +196,7 @@ class TodoWidget:
 
     def render(self):
         label, tag = format_day(self.view_day, self.today)
-        self.title_lbl.configure(text=label)
+        self.title_lbl.configure(text=f"{label} {'▴' if self.cal.opened else '▾'}")
         self.tag_lbl.configure(text=tag or "")
 
         # 오늘이 아닐 때만 '오늘' 바로가기 버튼 표시
@@ -219,6 +231,8 @@ class TodoWidget:
         self.stat_lbl.configure(text=f"{done} / {len(tasks)} 완료" if tasks else "")
         self._draw_progress(done / len(tasks) if tasks else 0)
         self.canvas.yview_moveto(0)
+        if self.cal.opened:
+            self.cal.show_month_of(self.view_day)
 
     def _render_row(self, t):
         row = tk.Frame(self.list_frame, bg=BG)
@@ -381,9 +395,20 @@ class TodoWidget:
         self.render()
 
     def go_today(self):
+        self.go_to(self.today)
+
+    def go_to(self, day):
+        """특정 날짜로 바로 이동 (달력에서 날짜 클릭 시)."""
         self._editing = None
-        self.view_day = self.today
+        self.view_day = day
+        self.cal.close()
         self.render()
+
+    def toggle_calendar(self):
+        if self.cal.opened:
+            self.cal.close()
+        else:
+            self.cal.open()
 
     def toggle_topmost(self):
         on = not self.store.settings.get("topmost", False)
@@ -416,6 +441,19 @@ class TodoWidget:
 
     def _drag_start(self, e):
         self._drag = (e.x_root - self.root.winfo_x(), e.y_root - self.root.winfo_y())
+
+    def _title_press(self, e):
+        self._press = (e.x_root, e.y_root)
+        self._drag_start(e)
+
+    def _title_release(self, e):
+        # 거의 안 움직였으면 드래그가 아니라 클릭으로 보고 달력을 연다
+        px, py = self._press
+        if abs(e.x_root - px) + abs(e.y_root - py) < 4:
+            self._drag = None
+            self.toggle_calendar()
+        else:
+            self._save_geometry()
 
     def _drag_move(self, e):
         if self._drag:
@@ -470,6 +508,148 @@ class TodoWidget:
     def close(self):
         self._save_geometry()
         self.root.destroy()
+
+
+class CalendarPanel(tk.Frame):
+    """날짜 제목을 누르면 위젯 안에 펼쳐지는 월간 달력.
+
+    - ◀ ▶ 또는 마우스 휠로 달 이동
+    - 날짜 클릭 시 그 날로 이동하고 달력 닫힘
+    - 할 일이 있는 날은 점으로 표시 (주황: 남은 일 있음, 초록: 모두 완료)
+    """
+
+    def __init__(self, app):
+        super().__init__(app.root, bg=BG)
+        self.app = app
+        self.opened = False
+        self.year = self.month = None
+
+    def open(self):
+        self.opened = True
+        top = self.app.head.winfo_y() + self.app.head.winfo_height() + 4
+        # 상단 바 아래 영역 전체를 덮는다
+        self.place(x=0, y=top, relwidth=1, relheight=1, height=-top)
+        self.lift()
+        self.app.render()  # 제목 화살표 갱신 + 달력 그리기
+
+    def close(self):
+        if not self.opened:
+            return
+        self.opened = False
+        self.place_forget()
+        self.app.render()
+
+    def show_month_of(self, day):
+        d = dt.date.fromisoformat(day)
+        self.year, self.month = d.year, d.month
+        self.draw()
+
+    def shift(self, months):
+        idx = self.year * 12 + (self.month - 1) + months
+        self.year, self.month = divmod(idx, 12)
+        self.month += 1
+        self.draw()
+
+    def draw(self):
+        app = self.app
+        for child in self.winfo_children():
+            child.destroy()
+
+        # 상단: ◀ 2026년 10월 ▶   오늘
+        top = tk.Frame(self, bg=BG)
+        top.pack(fill="x", padx=12, pady=(2, 6))
+        app._icon_btn(top, "◀", lambda: self.shift(-1)).pack(side="left")
+        tk.Label(top, text=f"{self.year}년 {self.month}월", bg=BG, fg=FG,
+                 font=app.f_bold).pack(side="left", padx=8)
+        app._icon_btn(top, "▶", lambda: self.shift(1)).pack(side="left")
+        app._icon_btn(top, "오늘", lambda: app.go_to(app.today),
+                      fg=ACCENT, font=app.f_small).pack(side="right")
+
+        grid = tk.Frame(self, bg=BG)
+        grid.pack(fill="both", expand=True, padx=12)
+        for c in range(7):
+            grid.columnconfigure(c, weight=1, uniform="col")
+
+        # 요일 머리글 (일요일 시작)
+        for c, name in enumerate("일월화수목금토"):
+            fg = DANGER if c == 0 else SAT if c == 6 else SUB
+            tk.Label(grid, text=name, bg=BG, fg=fg, font=app.f_small).grid(row=0, column=c)
+
+        counts = app.store.day_counts()
+        weeks = calendar.Calendar(firstweekday=6).monthdatescalendar(self.year, self.month)
+        for r, week in enumerate(weeks, start=1):
+            grid.rowconfigure(r, weight=1, uniform="row")
+            for c, d in enumerate(week):
+                self._cell(grid, r, c, d, counts)
+
+        # 범례
+        legend = tk.Frame(self, bg=BG)
+        legend.pack(fill="x", padx=12, pady=(4, 8))
+        for color, text in ((CARRY, "남은 일"), (GOOD, "모두 완료")):
+            tk.Label(legend, text="●", bg=BG, fg=color, font=app.f_small).pack(side="left")
+            tk.Label(legend, text=text, bg=BG, fg=SUB, font=app.f_small).pack(side="left", padx=(0, 10))
+
+        for w in self._all_widgets(self):
+            self._bind_wheel(w)
+
+    def _cell(self, grid, r, c, d, counts):
+        app = self.app
+        iso = d.isoformat()
+        selected = iso == app.view_day
+        is_today = iso == app.today
+        in_month = d.month == self.month
+
+        bg = ACCENT if selected else BG
+        if selected:
+            fg = BG
+        elif not in_month:
+            fg = DONE
+        elif is_today:
+            fg = ACCENT
+        else:
+            fg = DANGER if c == 0 else SAT if c == 6 else FG
+
+        total, done = counts.get(iso, (0, 0))
+        if total == 0:
+            dot_fg = bg  # 할 일 없으면 점을 배경색으로 숨김
+        elif selected:
+            dot_fg = BG
+        else:
+            dot_fg = GOOD if done == total else CARRY
+
+        cell = tk.Frame(grid, bg=bg, cursor="hand2")
+        cell.grid(row=r, column=c, sticky="nsew", padx=1, pady=1)
+        num = tk.Label(cell, text=d.day, bg=bg, fg=fg, cursor="hand2",
+                       font=app.f_bold if is_today else app.f_body)
+        num.pack(pady=(2, 0))
+        dot = tk.Label(cell, text="●", bg=bg, fg=dot_fg, font=app.f_small, cursor="hand2")
+        dot.pack()
+
+        parts = (cell, num, dot)
+
+        def hover(on):
+            if selected:
+                return
+            for w in parts:
+                w.configure(bg=HOVER if on else BG)
+            if total == 0:
+                dot.configure(fg=HOVER if on else BG)
+
+        for w in parts:
+            w.bind("<Button-1>", lambda e: app.go_to(iso))
+            w.bind("<Enter>", lambda e: hover(True))
+            w.bind("<Leave>", lambda e: hover(False))
+
+    def _all_widgets(self, w):
+        yield w
+        for child in w.winfo_children():
+            yield from self._all_widgets(child)
+
+    def _bind_wheel(self, w):
+        # 휠을 올리면 이전 달, 내리면 다음 달
+        w.bind("<MouseWheel>", lambda e: self.shift(-1 if e.delta > 0 else 1), add="+")
+        w.bind("<Button-4>", lambda e: self.shift(-1), add="+")
+        w.bind("<Button-5>", lambda e: self.shift(1), add="+")
 
 
 def main():

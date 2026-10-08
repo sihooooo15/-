@@ -61,6 +61,16 @@ class TodoStoreTest(unittest.TestCase):
         self.store.delete(t["id"])
         self.assertEqual(self.store.tasks, [])
 
+    def test_날짜별_개수_집계(self):
+        a = self.store.add("A", "2026-10-08")
+        self.store.add("B", "2026-10-08")
+        self.store.add("C", "2026-10-20")
+        self.store.toggle(a["id"], "2026-10-08")
+        counts = self.store.day_counts()
+        self.assertEqual(counts["2026-10-08"], (2, 1))
+        self.assertEqual(counts["2026-10-20"], (1, 0))
+        self.assertNotIn("2026-10-09", counts)
+
     def test_깨진_파일은_백업하고_빈_상태로_시작(self):
         self.path.write_text("{깨진 json", encoding="utf-8")
         store = TodoStore(self.path)

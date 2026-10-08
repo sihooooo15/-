@@ -82,6 +82,14 @@ class TodoStore:
         items = [t for t in self.tasks if t["date"] == day]
         return sorted(items, key=lambda t: t["done"])
 
+    def day_counts(self):
+        """날짜별 (전체 개수, 완료 개수). 달력에 할 일 표시용."""
+        counts = {}
+        for t in self.tasks:
+            total, done = counts.get(t["date"], (0, 0))
+            counts[t["date"]] = (total + 1, done + t["done"])
+        return counts
+
     def carried_days(self, task):
         """처음 등록일로부터 며칠째 밀려 있는지 (0이면 이월 아님)."""
         return max(0, days_between(task["origin"], task["date"]))
